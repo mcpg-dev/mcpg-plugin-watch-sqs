@@ -1,0 +1,52 @@
+schema: mcpg.dev/plugin/v1
+id: dev.mcpg.watch.sqs
+name: Amazon SQS Watch Strategy
+license: Apache-2.0
+description: |
+  Consumes an Amazon SQS queue, or an SQS-compatible one such as ElasticMQ,
+  as MCP Events. The `sqs_queue` strategy long-polls the queue; each message
+  is one `sqs.message` event, deleted once the gateway has stored it and made
+  visible again when the gateway has not done so in `ack_timeout_ms`, so
+  delivery is at-least-once and the SQS message id lets the gateway take a
+  redelivered message once. Credentials are static or the AWS default chain
+  (IRSA, instance role, environment, profile).
+class: watch_strategy
+runtime: native-cdylib-v1
+protocol_version: "1.0"
+required_capabilities: [network_outbound]
+# MCP Events: SQS keeps what is not deleted, so the watch needs no stored
+# position.
+watch_strategies:
+  - kind: sqs_queue
+    placement: single_owner
+    resume: false
+    event_types:
+      - name: sqs.message
+        description: One message received from the watched queue. The eventId is the SQS message id.
+        payload_schema:
+          type: object
+          required: [queueUrl, messageId, body, bodyEncoding, messageAttributes]
+          properties:
+            queueUrl: { type: string }
+            messageId: { type: string }
+            body:
+              description: The message body, read as bodyEncoding says; null when bodyTruncated.
+            bodyEncoding:
+              description: How body holds the message body - its JSON or its text.
+              enum: [json, text, base64, null]
+            bodyTruncated: { type: boolean, description: The body was larger than max_body_bytes and is left out. }
+            bodySize: { type: integer, description: The size of a body left out, in bytes. }
+            sentAt: { type: string, description: When SQS received the message, RFC 3339. }
+            receiveCount: { type: integer, description: How many times SQS has delivered it, about. }
+            groupId: { type: string, description: The message group of a FIFO queue. }
+            deduplicationId: { type: string }
+            sequenceNumber: { type: string }
+            senderId: { type: string }
+            messageAttributes:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  dataType: { type: string }
+                  value: { type: string }
+                  binaryValue: { type: string, description: Standard base64. }

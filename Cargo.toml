@@ -1,0 +1,51 @@
+[package]
+name = "mcpg-plugin-watch-sqs"
+version = "0.1.0-alpha.1"
+license = "Apache-2.0"
+edition = "2024"
+description = "Amazon SQS watch_strategy plugin for MCPG (dev.mcpg.watch.sqs) — each message on an SQS queue as an MCP Event, deleted only once the gateway has stored it."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# Gate declare_plugin! behind these — an ungated export risks a duplicate
+# mcpg_plugin_register symbol if this crate ever links into the workspace
+# alongside another exporter.
+cdylib-export = []
+static-firstparty = []
+# Gates the docker-backed ElasticMQ suite and the live AWS suite (which skips
+# unless SQS_LIVE_* is set) so plain `cargo test` stays cheap.
+# Run: `cargo test -p mcpg-plugin-watch-sqs --features integration-tests`.
+integration-tests = []
+
+[dependencies]
+mcpg-plugin-protocol = { git = "https://github.com/mcpg-dev/mcpg-plugin-protocol", tag = "v0.1.0-beta.40", version = "=0.1.0-beta.40" }
+mcpg-plugin-sdk = { git = "https://github.com/mcpg-dev/mcpg-plugin-sdk", tag = "v0.1.0-beta.41", version = "=0.1.0-beta.41", features = ["static-firstparty"] }
+# The modern AWS HTTPS client (aws-lc-rs / rustls 0.23): defaults off and
+# `default-https-client` on, not the `rustls` feature, which maps to the
+# legacy hyper-0.14 + rustls 0.21 connector.
+aws-config = { version = "1", default-features = false, features = [
+    "behavior-version-latest",
+    "default-https-client",
+    "rt-tokio",
+    "credentials-process",
+    "sso",
+] }
+aws-credential-types = "1"
+aws-sdk-sqs = { version = "1", default-features = false, features = [
+    "behavior-version-latest",
+    "default-https-client",
+] }
+base64 = "0.23"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+tracing = "0.1"
+
+[dev-dependencies]
+testcontainers = "0.27"
+
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+wiremock = "0.6"
